@@ -1,69 +1,76 @@
 pipeline {
     agent any
 
-    tools{
+    tools {
         jdk 'jdk17'
         maven 'Maven'
     }
 
+    environment {
+        SONARQUBE = 'SonarQube-10'
+    }
+
     stages {
-        stage('Code Checkout') {
+        stage('Checkout') {
             steps {
-                git branch: 'main', changelog: false, poll: false, url: 'https://github.com/AbderrahmaneOd/Spring-Boot-Jenkins-CI-CD'
-            }
-        }
-        
-        stage('OWASP Dependency Check'){
-            steps{
-                dependencyCheck additionalArguments: '--scan ./ --format HTML ', odcInstallation: 'db-check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                git branch: 'main', url: 'https://github.com/hasnahatti70/spring-boot-jenkins-ci-cd.git
+'
             }
         }
 
-        stage('Sonarqube Analysis') {
+        stage('Build') {
             steps {
-                sh ''' mvn sonar:sonar \
-                    -Dsonar.host.url=http://localhost:9000/ \
-                    -Dsonar.login=squ_9bd7c664e4941bd4e7670a88ed93d68af40b42a3 '''
-            }
-        }
-
-        stage('Clean & Package'){
-            steps{
-                sh "mvn clean package -DskipTests"
-            }
-        }
-
-
-        
-       stage("Docker Build & Push"){
-            steps{
-                script{
-                    withDockerRegistry(credentialsId: 'DockerHub-Token', toolName: 'docker') {
-                        def imageName = "spring-boot-prof-management"
-                        def buildTag = "${imageName}:${BUILD_NUMBER}"
-                        def latestTag = "${imageName}:latest"  // Define latest tag
-                        
-                        sh "docker build -t ${imageName} -f Dockerfile.final ."
-                        sh "docker tag ${imageName} abdeod/${buildTag}"
-                        sh "docker tag ${imageName} abdeod/${latestTag}"  // Tag with latest
-                        sh "docker push abdeod/${buildTag}"
-                        sh "docker push abdeod/${latestTag}"  // Push latest tag
-                        env.BUILD_TAG = buildTag
-                    }
-                        
+                dir('springboot-backend') {
+                    sh 'mvn clean verify'
                 }
             }
         }
-        
-        stage('Vulnerability scanning'){
-            steps{
-                sh " trivy image abdeod/${buildTag}"
+
+        stage('SonarQube Analysis') {
+            steps {
+                dir('springboot-backend') {
+                    withSonarQubeEnv("${SONARQUBE}") {
+                        sh 'mvn sonar:sonar -Dsonar.projectKey=springcrud'
+                    }
+                }
             }
         }
 
-        stage("Staging"){
-            steps{
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage("Docker Build & Push") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'DockerHub-Token', toolName: 'docker') {
+                        def imageName = "spring-boot-prof-management"
+                        def buildTag = "${imageName}:${BUILD_NUMBER}"
+                        def latestTag = "${imageName}:latest"
+
+                        sh "docker build -t ${imageName} -f Dockerfile.final ."
+                        sh "docker tag ${imageName} abdeod/${buildTag}"
+                        sh "docker tag ${imageName} abdeod/${latestTag}"
+                        sh "docker push abdeod/${buildTag}"
+                        sh "docker push abdeod/${latestTag}"
+                        env.BUILD_TAG = buildTag
+                    }
+                }
+            }
+        }
+
+        stage('Vulnerability scanning') {
+            steps {
+                sh "trivy image abdeod/${BUILD_TAG}"
+            }
+        }
+
+        stage("Staging") {
+            steps {
                 sh 'docker-compose up -d'
             }
         }
