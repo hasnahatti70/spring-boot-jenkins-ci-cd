@@ -9,7 +9,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/hasnahatti70/spring-boot-jenkins-ci-cd.git
+                git branch: 'main', url: 'https://github.com/hasnahatti70/spring-boot-jenkins-ci-cd.git'
 '
             }
         }
