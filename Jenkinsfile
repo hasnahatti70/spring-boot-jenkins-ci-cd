@@ -1,16 +1,19 @@
 pipeline {
     agent any
 
-
     environment {
         SONARQUBE = 'SonarQube-10'
+    }
+
+    tools {
+        jdk 'jdk17'
+        maven 'Maven'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/hasnahatti70/spring-boot-jenkins-ci-cd.git'
-'
             }
         }
 
