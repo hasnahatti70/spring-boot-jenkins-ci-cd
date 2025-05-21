@@ -1,36 +1,45 @@
 pipeline {
     agent any
 
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+
     environment {
-        SONARQUBE = 'SonarQube-10'
+        SONARQUBE = 'SonarQube-10' // Configure System > SonarQube servers
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/hasnahatti70/spring-boot-jenkins-ci-cd.git'
+                git branch: 'main', url: 'https://github.com/hasnahatti70/spring-boot-jenkins-ci-cd'
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --format HTML', odcInstallation: 'db-check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
 
         stage('Build & Tests') {
             steps {
-                dir('springboot-backend') {
-                    sh 'mvn clean test'
-                }
+                sh 'mvn clean test'
             }
             post {
                 always {
-                    junit 'springboot-backend/target/surefire-reports/*.xml'
+                    junit 'target/surefire-reports/*.xml'
                 }
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                dir('springboot-backend') {
-                    withSonarQubeEnv("${SONARQUBE}") {
-                        sh 'mvn sonar:sonar -Dsonar.projectKey=springcrud'
-                    }
+                withSonarQubeEnv("${SONARQUBE}") {
+                    sh 'mvn sonar:sonar -Dsonar.projectKey=springcrud'
                 }
             }
         }
@@ -40,6 +49,12 @@ pipeline {
                 timeout(time: 1, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
+            }
+        }
+
+        stage('Clean & Package') {
+            steps {
+                sh 'mvn clean package -DskipTests'
             }
         }
 
