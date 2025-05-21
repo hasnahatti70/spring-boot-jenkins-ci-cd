@@ -5,11 +5,6 @@ pipeline {
         SONARQUBE = 'SonarQube-10'
     }
 
-    tools {
-        jdk 'jdk17'
-        maven 'Maven'
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -17,10 +12,15 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build & Tests') {
             steps {
                 dir('springboot-backend') {
-                    sh 'mvn clean verify'
+                    sh 'mvn clean test'
+                }
+            }
+            post {
+                always {
+                    junit 'springboot-backend/target/surefire-reports/*.xml'
                 }
             }
         }
